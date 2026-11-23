@@ -10,8 +10,8 @@ abstract: >-
 authors:
   - family-names: "Poreddy"
     given-names: "Sai Saketh Reddy"
-repository-code: "https://github.com/Saketh-Labs/InsightPilot"
-url: "https://github.com/Saketh-Labs/InsightPilot"
+repository-code: "https://github.com/Saketh-Poreddy/InsightPilot"
+url: "https://github.com/Saketh-Poreddy/InsightPilot"
 license: MIT
 keywords:
   - rate-mix-decomposition
