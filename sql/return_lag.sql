@@ -1,4 +1,4 @@
--- InsightPilot AI - how long returns actually take
+-- InsightPilot - how long returns actually take
 --
 -- The most recent weeks in any returns dataset look great, because the items
 -- sold in them have not come back yet. Comparing a censored recent window

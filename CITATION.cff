@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "InsightPilot AI"
+title: "InsightPilot"
 message: "If you use this software or the method it implements, please cite it."
 type: software
 abstract: >-
@@ -10,8 +10,8 @@ abstract: >-
 authors:
   - family-names: "Poreddy"
     given-names: "Sai Saketh Reddy"
-repository-code: "https://github.com/Saketh-Labs/InsightPilot-AI"
-url: "https://github.com/Saketh-Labs/InsightPilot-AI"
+repository-code: "https://github.com/Saketh-Labs/InsightPilot"
+url: "https://github.com/Saketh-Labs/InsightPilot"
 license: MIT
 keywords:
   - rate-mix-decomposition

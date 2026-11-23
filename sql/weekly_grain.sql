@@ -1,4 +1,4 @@
--- InsightPilot AI - weekly return grain
+-- InsightPilot - weekly return grain
 --
 -- One row per week x traffic source x category, carrying COUNTS rather than
 -- rates. Counts are additive, so every rate in the dashboard is derived at
