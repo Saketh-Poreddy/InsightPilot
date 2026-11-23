@@ -1,7 +1,12 @@
 # InsightPilot AI
 
-A dashboard that explains **why** a metric moved, and rebuilds itself every week
-for about the price of a coffee per year.
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Live dashboard](https://img.shields.io/badge/demo-live-brightgreen.svg)](https://storage.googleapis.com/insightspilot-ai/Article_Insights_AI.html)
+
+A self-refreshing dashboard that explains **why** a metric moved, not just that
+it moved. It rebuilds itself weekly from BigQuery and runs for under a dollar a
+year on Google Cloud.
 
 Most dashboards report that the return rate moved a fifth of a point and stop
 there. This one splits that change into the only two things it can be:
@@ -9,14 +14,26 @@ there. This one splits that change into the only two things it can be:
 - **Rate effect** — customers inside each segment behaved differently.
 - **Mix effect** — customers behaved the same, but the composition shifted.
 
-Those point at different teams and different fixes, and a trend line cannot tell
-them apart.
+Those point at different teams and different fixes, and a trend line cannot
+tell them apart.
 
 [![The InsightPilot dashboard](docs/cover.png)](https://storage.googleapis.com/insightspilot-ai/Article_Insights_AI.html)
 
 **[Open the live dashboard →](https://storage.googleapis.com/insightspilot-ai/Article_Insights_AI.html)**
-It rebuilds itself every week, so the numbers you see there will not match the
-ones written below for long — which is rather the point.
+The page rebuilds weekly, so the figures there will differ from the ones
+recorded below. That is the behavior being demonstrated.
+
+## Contents
+
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Using it on your own data](#using-it-on-your-own-data)
+- [Reading the numbers](#reading-the-numbers)
+- [Known pitfalls](#known-pitfalls)
+- [Cost](#cost)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
@@ -31,7 +48,7 @@ ones written below for long — which is rather the point.
                                    3. inject rows into the page        a permanent link
 ```
 
-No server, no BI licence, no build step. The dashboard is a single HTML file
+No server, no BI license, no build step. The dashboard is a single HTML file
 with its data embedded as a JavaScript array, so it opens instantly, works
 offline, and runs anywhere a browser does.
 
@@ -49,7 +66,7 @@ offline, and runs anywhere a browser does.
 
 ### One implementation, two places to read it from
 
-The repo is the source of truth. A Vertex AI job has no checkout, so
+The repository is the source of truth. A Vertex AI job has no checkout, so
 `scripts/deploy_template.sh` copies the page template and the two queries to
 `gs://BUCKET/template/`, and the job reads them from there.
 
@@ -57,11 +74,33 @@ The repo is the source of truth. A Vertex AI job has no checkout, so
 file wins if it exists, otherwise the deployed copy in the bucket.** Run it from
 a clone and it uses your working tree; run it on Vertex AI and it uses what you
 deployed. One authored file, one deployed copy of that file, and no third
-version drifting quietly out of sync.
+version drifting out of sync.
 
 The deployed template lives under `template/` while the published page sits at
 the bucket root, so a bad run can overwrite the output but never the input it
 was built from.
+
+---
+
+## Requirements
+
+| | |
+|---|---|
+| Python | 3.9 or later |
+| Dependencies | `google-cloud-bigquery`, `google-cloud-storage` — pinned in [`requirements.txt`](requirements.txt) |
+| Google Cloud | A project with BigQuery, Cloud Storage and Vertex AI enabled |
+| CLI | [`gcloud`](https://cloud.google.com/sdk/docs/install), for authentication and bucket creation |
+
+```bash
+pip install -r requirements.txt
+```
+
+The versions are pinned exactly rather than as ranges, because this repository
+is published alongside an article and will be cloned long after it was written.
+`requirements.txt` explains how to move them forward.
+
+Viewing the dashboard with the committed sample payload requires none of the
+above beyond Python itself.
 
 ---
 
@@ -73,9 +112,9 @@ See it before touching Google Cloud:
 python refresh_dashboard.py --data dashboard/data.json --no-upload --out page.html
 ```
 
-That fills the page from the committed sample payload and writes it next to you.
-The sample is clearly marked as sample on screen, so you can judge the layout
-without an account. Then:
+That fills the page from the committed sample payload and writes it to
+`page.html` in the working directory. The sample is labeled as sample on screen,
+so the layout can be judged without an account. Then:
 
 1. **Create a Google Cloud project** and enable BigQuery, Cloud Storage and
    Vertex AI. Set a $10 budget alert before anything else runs.
@@ -88,14 +127,14 @@ without an account. Then:
 
 3. **Set your own project and bucket** at the top of `refresh_dashboard.py`, or
    pass `IP_PROJECT` and `IP_BUCKET` as environment variables.
-4. **Price it first.** This is free and it is the only chance to catch an
-   expensive query before paying for it:
+4. **Price the query first.** This is free, and it is the only opportunity to
+   catch an expensive query before paying for it:
 
    ```bash
    python refresh_dashboard.py --estimate-only
    ```
 
-5. **Create the bucket and publish**, private by construction — uniform
+5. **Create the bucket and publish.** Private by construction — uniform
    bucket-level access on, public access prevention enforced:
 
    ```bash
@@ -109,12 +148,12 @@ without an account. Then:
    ```
 
 7. **Schedule it weekly** as a Vertex AI custom job running
-   `python refresh_dashboard.py`. It must run as a service account, not as you —
-   see the gotchas, because this is the step that fails for everyone the first
-   time. The service account needs **BigQuery Job User** on the project and
-   **Storage Object User** on the bucket.
+   `python refresh_dashboard.py`. It must run as a service account rather than
+   as you — see [Known pitfalls](#known-pitfalls), as this is the step that most
+   commonly fails on a first attempt. The service account needs **BigQuery Job
+   User** on the project and **Storage Object User** on the bucket.
 
-### Going public
+### Publishing the page publicly
 
 Two changes, in this order:
 
@@ -129,28 +168,33 @@ gcloud storage buckets add-iam-policy-binding gs://YOUR-BUCKET \
 
 The permanent link is then `storage.googleapis.com/BUCKET/OBJECT`.
 
-**That grant is bucket-wide, and there is no way to narrow it.** The obvious
-instinct is to scope it to the one object you actually want served, with an IAM
-condition on `resource.name`. Cloud Storage refuses:
+**That grant is bucket-wide, and it cannot be narrowed.** The obvious instinct
+is to scope it to the single object you want served, using an IAM condition on
+`resource.name`. Cloud Storage refuses:
 
 ```
 HTTPError 400: PublicResourceAllowConditionCheck
 Error: Conditions are not allowed on public resources.
 ```
 
-Per-object ACLs are the other way to do it, and uniform bucket-level access —
-which you want on, because it is what removes per-object ACLs as a leak path —
-disables exactly that. So the honest model is: **a bucket is public or it is
-not.** Treat this one as a public web root. Everything in it is world-readable,
+Per-object ACLs are the other route, and uniform bucket-level access — which
+you want enabled, because it removes per-object ACLs as a leak path — disables
+exactly that. So the accurate model is: **a bucket is public or it is not.**
+Treat a public one as a public web root. Everything in it is world-readable,
 including the `template/` prefix, which is why the template here carries sample
-data and the queries are the same ones already published in this repo.
+data and the queries are the same ones already published in this repository.
 
-If you ever need the job's inputs to be private, they do not belong in the same
-bucket as the page. Put them in a second, private bucket, or — since this repo
-is public — point `--template` and `--sql` at GitHub raw URLs and keep the
-public bucket holding nothing but the published page.
+If the job's inputs must stay private, they do not belong in the same bucket as
+the page. Put them in a second, private bucket, or — since this repository is
+public — point `--template` and `--sql` at GitHub raw URLs and keep the public
+bucket holding nothing but the published page.
 
-### Creating the bucket by hand
+For an internal deployment none of this applies: grant `domain:`, `group:` or
+`user:` principals instead of `allUsers`, and the bucket stays private to your
+organization. See [Known pitfalls](#known-pitfalls) for the one principal that
+looks internal but is not.
+
+### Creating the bucket manually
 
 With `gcloud`, two commands:
 
@@ -164,13 +208,15 @@ gcloud storage cp page.html gs://YOUR-BUCKET/Article_Insights_AI.html \
   --content-type="text/html; charset=utf-8" --cache-control="no-cache, max-age=0"
 ```
 
-**Dragging the file into the console works too, but sets neither header.** A
+**Uploading through the Cloud Console works, but sets neither header.** A
 console upload gives the object `text/html` with no charset and no cache policy,
-which is exactly the mojibake-and-stale-numbers pair from the gotchas below. If
-you upload by hand, edit the object's metadata afterwards and set both.
+which produces both of the display problems described under
+[Known pitfalls](#known-pitfalls). After a manual upload, edit the object's
+metadata and set both.
 
-Bucket names are global across all of Google Cloud, not per project, so the name
-you want may be taken; the script says so and suggests a suffix. Lowercase only.
+Bucket names are global across all of Google Cloud rather than per project, so
+the name you want may be taken; the script reports this and suggests a suffix.
+Lowercase only.
 
 ---
 
@@ -178,21 +224,21 @@ you want may be taken; the script says so and suggests a suffix. Lowercase only.
 
 Nothing downstream of the query knows what a "return" is. The page receives five
 columns and treats them as *a numerator, a denominator, and three labels* — so
-this works for any rate you can split two ways, not just returns.
+this works for any rate that can be split two ways, not only returns.
 
-**The contract is five column names.** Your query must return exactly these,
-spelled exactly like this:
+**The contract is five column names.** The query must return exactly these,
+spelled exactly this way:
 
 | Column | Type | What it is |
 |---|---|---|
 | `week_start` | DATE | the period bucket, one row per period per segment |
 | `traffic_source` | STRING | your first dimension |
 | `category` | STRING | your second dimension |
-| `returned_items` | INT64 | the **numerator** — the thing you are measuring |
+| `returned_items` | INT64 | the **numerator** — the thing being measured |
 | `total_items` | INT64 | the **denominator** — everything it could have been |
 
 Alias your own columns to those names and `refresh_dashboard.py` needs no
-changes at all:
+changes:
 
 ```sql
 SELECT
@@ -215,11 +261,11 @@ audience — all the same shape.
 loudly:
 
 - **Counts, never rates.** Return `COUNTIF(...)` and `COUNT(*)`, not a ratio.
-  The whole point is that counts stay additive when the reader filters; hand it
-  a pre-computed rate and every filtered view silently averages averages.
+  Counts stay additive when the reader filters; a pre-computed rate means every
+  filtered view silently averages averages.
 - **One statement.** Two statements make it a BigQuery script, and a dry run of
-  a script reports zero bytes, which disables the cost ceiling. The script
-  refuses to run on a zero estimate for exactly this reason.
+  a script reports zero bytes, which disables the cost ceiling. The job refuses
+  to run on a zero estimate for this reason.
 
 **Then rename the labels**, which live in `dashboard/index.html` in two places:
 
@@ -228,15 +274,15 @@ loudly:
   nouns used in the generated sentences (`noun`, `plural`, `other`,
   `otherPlural`)
 
-Everything else on the page — every chart, every table, every sentence — is
-derived from the data at render time, so there is nothing else to touch.
+Everything else on the page — every chart, table and sentence — is derived from
+the data at render time, so there is nothing further to change.
 
-**One judgement call is yours**, and the dashboard cannot make it for you: the
+**One judgment call remains yours**, and the dashboard cannot make it: the
 return-lag guard in `sql/return_lag.sql` measures how late *returns* arrive. If
 your event has no settling delay — a click, a login — set `--lag-weeks 0` and
-delete that query. If it has a longer one, like a 90-day refund window, the
-measurement still works but check that 112 weeks is enough history to leave two
-full comparison windows after the guard is subtracted.
+delete that query. If it has a longer one, such as a 90-day refund window, the
+measurement still works, but check that 112 weeks is enough history to leave two
+full comparison windows once the guard is subtracted.
 
 ---
 
@@ -252,13 +298,12 @@ share of items — so a change in the total decomposes exactly:
 
 There is no residual. The two terms always sum to the observed change. This is
 a **Kitagawa decomposition**, published by Evelyn Kitagawa in 1955 as
-*"Components of a Difference Between Two Rates"* — worth knowing, both because
-the method is older and better understood than it looks, and because her
-symmetric variant splits the interaction term evenly between the two components
-instead of attributing it all to rate. Both forms close exactly; they disagree
-only about who gets the overlap.
+*"Components of a Difference Between Two Rates"*. Her symmetric variant splits
+the interaction term evenly between the two components rather than attributing
+all of it to rate; both forms close exactly, and differ only in which component
+receives the overlap.
 
-### What the data actually says
+### What the data shows
 
 Measured 2026-11-07, comparing 2025-10-27 → 2026-10-19 against
 2024-10-28 → 2025-10-20, with a 2-week lag guard:
@@ -273,101 +318,99 @@ Measured 2026-11-07, comparing 2025-10-27 → 2026-10-19 against
 | Traffic source | +0.002 pt | +0.225 pt |
 | Product category | −0.003 pt | +0.231 pt |
 
-Both splits close to a residual of about 1e-15, which is floating-point noise
-rather than a real gap.
+Both splits close to a residual of approximately 1e-15, which is floating-point
+noise rather than a real gap.
 
-**These numbers will not stay true, and that is worth saying plainly.** Ten days
-earlier the same measurement gave +0.742 pt. The dataset is synthetic and
-regenerates continuously — the item count nearly doubled year over year, so the
-comparison windows are not sampling a stable population. Quote a figure from
-here in a blog post and it will be wrong by the time anyone reads it; link to
-the live page instead.
+**These figures are not stable.** Ten days earlier the same measurement returned
++0.742 pt. The underlying dataset is synthetic and regenerates continuously —
+the item count nearly doubled year over year, so the comparison windows are not
+sampling a stable population. Any figure quoted from here will be out of date
+quickly; link to the live page instead.
 
-What *is* stable is the shape of the answer: **the mix effect is ~0 on both
-dimensions, on every run so far.** The rate rose because customers inside the
-segments returned more, not because the mix of customers changed.
+What is stable is the shape of the result: **the mix effect is approximately
+zero on both dimensions, on every run so far.** The rate rose because customers
+inside the segments returned more, not because the mix of customers changed —
+Search moved 11.6% → 12.4%, Facebook 11.5% → 13.1%, and only Email improved.
+The largest shift in segment share over a full year is 0.2 pt.
 
-**The mix effect is essentially zero on both dimensions.** The rate rose because
-customers inside every major segment returned more, not because the mix of
-customers changed — Search went 11.6% → 12.4%, Facebook 11.5% → 13.1%, and only
-Email improved. The segment shares barely moved at all: the largest shift in a
-year is 0.2 pt.
+Synthetic data tends to hold its proportions steady, so a flat mix term is the
+expected result here. The method earns its keep on real business data, where mix
+shifts are precisely what gets mistaken for behavior.
 
-That is a real answer, and worth stating plainly rather than dressing up: on
-this dataset the decomposition's verdict is "it isn't mix." Synthetic data tends
-to hold its proportions steady, so a flat mix term is what you should expect
-here. The method earns its keep on real business data, where mix shifts are
-exactly what gets mistaken for behaviour.
+**This is why the choice of dimension matters.** A mix effect can only appear on
+a dimension that actually shifted, so "is it rate or mix?" has no answer until
+the split is named. Segment by something stable and the conclusion will always
+be "behavior" — correct here, but not because anything was tested.
 
-**Which is why the dimension matters.** A mix effect can only show up on a
-dimension that actually shifted, so "is it rate or mix?" has no answer until you
-name the split. Segment by something stable and you will always conclude
-"behaviour" — correctly here, but not because you checked anything.
+Three decisions are built into the query, each for a reason:
 
-Three decisions are baked into the query, each for a reason:
-
-- **Counts, not rates.** Counts add up across any grouping; rates do not. Every
+- **Counts, not rates.** Counts add across any grouping; rates do not. Every
   rate is computed at display time, so filtering never averages an average.
 - **Cancelled items are excluded.** They never shipped, so they could never be
-  returned. Leaving them in the denominator quietly drags every rate down.
-- **The last few weeks are dropped.** Returns arrive late, so recent weeks always
-  look good. `sql/return_lag.sql` measures the 90th-percentile return lag and the
-  script drops that many weeks from *both* comparison windows, keeping them
+  returned. Leaving them in the denominator drags every rate down.
+- **The most recent weeks are dropped.** Returns arrive late, so recent weeks
+  always look good. `sql/return_lag.sql` measures the 90th-percentile return lag
+  and the job drops that many weeks from *both* comparison windows, keeping them
   matched.
 
 ---
 
-## Gotchas
+## Known pitfalls
 
-Every one of these cost real time, and most of them fail by producing something
-that looks fine rather than an error.
+Most of these fail by producing something that looks correct rather than an
+error.
 
 **A zero-byte dry run is a broken dry run, not a free query.** BigQuery reports
 `0 bytes` for a multi-statement script, so the moment a `.sql` file here holds
 two statements instead of one, the cost estimate reads zero and
-`maximum_bytes_billed` stops protecting anything — silently, because zero sails
+`maximum_bytes_billed` stops protecting anything — silently, because zero passes
 under every ceiling. Measured: one statement estimates at 8.4 MB; the same query
-with a second statement appended estimates at 0. The script now refuses to run
-on a zero estimate. A single statement ending in a semicolon is fine.
+with a second statement appended estimates at 0. The job now refuses to run on a
+zero estimate. A single statement ending in a semicolon is fine.
 
-**You cannot make one object public.** An IAM condition scoped to a single
-object is rejected outright — *"Conditions are not allowed on public
-resources"* — and the per-object ACL route is closed off by the uniform
-bucket-level access you want switched on. Public is a property of the bucket.
-Plan the bucket's contents around that rather than discovering it at the moment
-you want a demo link.
+**A single object cannot be made public.** An IAM condition scoped to one object
+is rejected outright — *"Conditions are not allowed on public resources"* — and
+the per-object ACL route is closed off by the uniform bucket-level access you
+want enabled. Public is a property of the bucket. Plan the bucket's contents
+around that rather than discovering it when a demo link is needed.
 
-**The authenticated link is not the public link.**
-`storage.cloud.google.com` needs every viewer signed in with access, and signed
-URLs time out. For public data, make the object public and share the
-`storage.googleapis.com` URL — that one is permanent. Never do this with a
-bucket holding anything that is not already public.
+**`allAuthenticatedUsers` is not an internal audience.** It means any Google
+account, personal Gmail included, which is effectively public. For internal
+access use `domain:your-company.com` or a Google Group. Google blocks `allUsers`
+and `allAuthenticatedUsers` grants by default in organizations created since May
+2024.
+
+**The authenticated link is not the public link.** `storage.cloud.google.com`
+requires every viewer to be signed in with access, and signed URLs expire. For
+public data, make the object public and share the `storage.googleapis.com` URL,
+which is permanent. Never do this with a bucket holding anything that is not
+already public.
 
 **A private HTML object does not render in the browser.** While the bucket is
 private, `storage.cloud.google.com` serves the file as a *download* rather than
-displaying it, so clicking the link saves the file instead of showing the
-dashboard. That is the endpoint's behaviour, not a problem with the file — open
-the downloaded copy and it works identically, because the page is entirely
-self-contained. In-browser rendering from a URL needs the public object.
+displaying it, so following the link saves the file instead of showing the
+dashboard. That is the endpoint's behavior, not a problem with the file — the
+downloaded copy works identically, because the page is self-contained.
+In-browser rendering from a URL requires a public object.
 
 **There are two different logins.** `gcloud auth login` authenticates the CLI;
 `gcloud auth application-default login` writes the credentials that Python
-client libraries actually read. The CLI can work perfectly while every script
-fails with `DefaultCredentialsError`. If the consent screen comes back having
-granted only `openid` and `userinfo.email`, the `cloud-platform` box was not
-ticked and the libraries still will not work.
+client libraries read. The CLI can work perfectly while every script fails with
+`DefaultCredentialsError`. If the consent screen grants only `openid` and
+`userinfo.email`, the `cloud-platform` scope was not selected and the libraries
+still will not work.
 
-**The schedule runs as you, by default.** A scheduled job using your own
-end-user credentials breaks silently when your token, permissions or job
-changes. Run it as a service account. If you schedule a Colab Enterprise
-notebook rather than this script, you must create a runtime template with
-**"Enable end-user credentials" turned off** before the service-account option
-appears at all — and then grant that account **Code Viewer** on the notebook, or
-the first run fails because it cannot open the notebook it is meant to run.
-Running a plain script, as here, avoids that second problem entirely.
+**A schedule runs as you by default.** A scheduled job using end-user
+credentials breaks silently when your token, permissions or job change. Run it
+as a service account. If you schedule a Colab Enterprise notebook rather than
+this script, you must create a runtime template with **"Enable end-user
+credentials" turned off** before the service-account option appears at all, then
+grant that account **Code Viewer** on the notebook, or the first run fails
+because it cannot open the notebook it is meant to run. Running a plain script,
+as here, avoids the second problem entirely.
 
 **Analytics belong in the template, not the published page.** Any snippet added
-to the live object is wiped by the next refresh without a trace. Add it to
+to the live object is overwritten by the next refresh without a trace. Add it to
 `dashboard/index.html` and deploy.
 
 Two smaller ones, both of which produce a page that looks broken rather than an
@@ -376,15 +419,17 @@ error message:
 - Upload with `Content-Type: text/html; charset=utf-8`. Without the charset,
   every dash and minus sign renders as mojibake.
 - Set `Cache-Control: no-cache`. The URL never changes, so otherwise viewers
-  keep seeing last week's numbers.
+  continue to see the previous week's numbers.
 
 ---
 
 ## Cost
 
 Prices change and vary by region. These are US on-demand figures — check the
-pricing pages before quoting them. The script prints the real query number on
-every run, and that is the one to trust:
+[BigQuery](https://cloud.google.com/bigquery/pricing) and
+[Cloud Storage](https://cloud.google.com/storage/pricing) pricing pages before
+quoting them. The job prints the real query figure on every run, and that is the
+one to trust:
 
 ```bash
 python refresh_dashboard.py --estimate-only
@@ -399,40 +444,54 @@ python refresh_dashboard.py --estimate-only
 | Class B ops (reads) | ~$0.0004 / 1,000 | 50,000 | one per page view |
 | Egress | ~$0.12 / GB | 100 GB (N. America) | 200 KB per page view |
 
-**About $0.50–1.00 a year, and nearly all of it is the compute.** The query and
-the storage are rounding errors against their free tiers; the schedule is the
-only line you really pay for. Daily instead of weekly roughly septuples that
-line and still lands near $5 a year.
+**Roughly $0.50–1.00 a year, nearly all of it compute.** The query and the
+storage are rounding errors against their free tiers; the schedule is the only
+line with a meaningful charge. Running daily instead of weekly multiplies that
+line by about seven and still lands near $5 a year.
 
-**The one line that scales with success is egress** — which is not where anyone
-looks. Every page view ships the whole 200 KB file, data and all. Ten thousand
-readers is 2 GB, inside the free allowance; a hundred thousand is 20 GB, still
-inside it. A front-page spike of a million views is ~200 GB, so ~$12 once.
-Embedding the data in the page is exactly what makes the hosting free, and
-exactly what makes a viral day cost money. Worth knowing before you post it.
+**The one line that scales with success is egress.** Every page view ships the
+whole 200 KB file, data included. Ten thousand readers is 2 GB, inside the free
+allowance; a hundred thousand is 20 GB, still inside it. A spike of a million
+views is approximately 200 GB, so around $12 once. Embedding the data in the
+page is what makes the hosting free, and also what makes a high-traffic day cost
+money.
 
 ### Keeping it that way
 
-Four rails, because a scheduled job bills you while you are not looking:
+Four controls, because a scheduled job bills you while you are not watching:
 
 - **A $10 budget alert on the project**, set before anything else runs. It does
-  not stop spending; it emails you.
-- **`--max-scan-mb`**, which the script hands to BigQuery as
+  not stop spending; it sends an email.
+- **`--max-scan-mb`**, which the job passes to BigQuery as
   `maximum_bytes_billed`. A query that would scan more is refused by the server,
   so a bad edit to the SQL fails instead of billing.
-- **A dry run on every execution.** Free, and the only chance to catch an
+- **A dry run on every execution.** Free, and the only opportunity to catch an
   expensive query before paying for it.
 - **A floor under the dry run**, because a zero estimate means the ceiling is
-  not protecting anything. See the first gotcha.
+  not protecting anything. See [Known pitfalls](#known-pitfalls).
 
-And one rail on correctness rather than cost: the script checks the finished
-payload before publishing — row count, plausible overall rate, no segment
-returning more than it sold, nothing stale — and a failure exits non-zero with
-the live page untouched. A schedule that silently publishes a broken dashboard
-is worse than one that fails, because nobody looks at a job that succeeded.
+One further control covers correctness rather than cost: the job validates the
+finished payload before publishing — row count, plausible overall rate, no
+segment returning more than it sold, nothing stale — and a failure exits
+non-zero with the live page untouched. A schedule that silently publishes a
+broken dashboard is worse than one that fails, because a job that reports
+success is not investigated.
 
 ---
 
-## Licence
+## Citation
+
+Citation metadata is in [`CITATION.cff`](CITATION.cff), which GitHub renders as
+a *Cite this repository* option in the sidebar.
+
+To cite the *method* rather than this implementation, cite Kitagawa directly:
+
+> Kitagawa, E. M. (1955). Components of a Difference Between Two Rates.
+> *Journal of the American Statistical Association*, 50(272), 1168–1194.
+> https://doi.org/10.1080/01621459.1955.10501299
+
+---
+
+## License
 
 MIT. See [LICENSE](LICENSE).
